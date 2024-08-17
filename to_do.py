@@ -12,6 +12,7 @@ class TodoApp:
         self.master.configure(bg='#f0f0f0')
         self.tasks = self.load_tasks()
         self.colors = ['#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#FFD8B8']
+        self.last_color = None
         self.create_widgets()
 
     def create_widgets(self):
@@ -60,20 +61,37 @@ class TodoApp:
             messagebox.showwarning("Warning", "Please enter a task.")
 
     def add_task_to_frame(self, task):
-        color = random.choice(self.colors)
+        color = self.get_next_color()
         task_frame = tk.Frame(self.inner_frame, bg=color, pady=5, padx=5)
         task_frame.pack(fill=tk.X, padx=5, pady=2)
-        tk.Label(task_frame, text=task, bg=color, wraplength=400, justify=tk.LEFT).pack(anchor='w')
+        
+        task_number = len(self.inner_frame.winfo_children())
+        task_label = tk.Label(task_frame, text=f"{task_number}. {task}", bg=color, wraplength=400, justify=tk.LEFT)
+        task_label.pack(anchor='w')
+        
+        task_frame.bind("<Button-1>", lambda e, tf=task_frame: self.select_task(tf))
+        task_label.bind("<Button-1>", lambda e, tf=task_frame: self.select_task(tf))
+
+    def get_next_color(self):
+        available_colors = [c for c in self.colors if c != self.last_color]
+        color = random.choice(available_colors)
+        self.last_color = color
+        return color
+
+    def select_task(self, task_frame):
+        for child in self.inner_frame.winfo_children():
+            child.configure(relief=tk.FLAT)
+        task_frame.configure(relief=tk.RAISED)
 
     def remove_task(self):
-        selected = self.inner_frame.focus_get()
-        if isinstance(selected, tk.Label):
-            task = selected.cget("text")
-            self.tasks.remove(task)
-            selected.master.destroy()
-            self.save_tasks()
-        else:
-            messagebox.showwarning("Warning", "Please select a task to remove.")
+        for index, task_frame in enumerate(self.inner_frame.winfo_children()):
+            if task_frame.cget('relief') == tk.RAISED:
+                self.tasks.pop(index)
+                task_frame.destroy()
+                self.save_tasks()
+                self.renumber_tasks()
+                return
+        messagebox.showwarning("Warning", "Please select a task to remove.")
 
     def clear_tasks(self):
         if messagebox.askyesno("Confirm", "Are you sure you want to clear all tasks?"):
@@ -85,6 +103,13 @@ class TodoApp:
     def populate_tasks(self):
         for task in self.tasks:
             self.add_task_to_frame(task)
+
+    def renumber_tasks(self):
+        for index, task_frame in enumerate(self.inner_frame.winfo_children(), start=1):
+            task_label = task_frame.winfo_children()[0]
+            old_text = task_label.cget("text")
+            new_text = f"{index}. {old_text.split('. ', 1)[1]}"
+            task_label.configure(text=new_text)
 
     def save_tasks(self):
         with open("tasks.json", "w") as f:
